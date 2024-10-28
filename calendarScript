@@ -56,6 +56,7 @@ events.forEach(e=>{
   //console.log(newTitle)
   e.save()
 
+ //
 
   if(targetReminder){
     
@@ -91,12 +92,14 @@ events.forEach(e=>{
     
     if(e.title.startsWith("✅")){
       newReminder.isCompleted = true
-    }
-    else if(!e.title.startsWith("⭕️")){
+    }else if(e.title.startsWith("❌")){
+      //noting todo 
+    }else if(!e.title.startsWith("⭕️")){
       e.title = "⭕️"+e.title
       e.save()
     }
     newReminder.title = e.title 
+  
      
   //todo 对比时间
   curReminder = targetReminder == null ? newReminder : targetReminder
@@ -116,24 +119,27 @@ events.forEach(e=>{
   //console.log("curReminder.dueDate" + curReminder.dueDate)
   //console.log("curReminder.isCompleted" + curReminder.isCompleted)
 
-  if(curDay > calendarStartDay){
-    if(targetReminder.isCompleted){
-      console.log("勾勾✅")
-    }else if(e.title.startsWith){
-      console.log("叉叉❌")
-      e.title = "❌" + e.title.substring(1)
+
+  cantCreateReminder = false
+  if(targetReminder){
+    if(curDay > calendarStartDay){
+      if(targetReminder.isCompleted){
+        console.log("勾勾✅")
+      }else if(e.title.startsWith){
+        console.log("叉叉❌")
+        e.title = "❌" + e.title.substring(1)
+        //e.save()
+        cantCreateReminder = true
+      }
     }
   }
     
-    
-    //处理标题
-    
-     
-    newReminder.save()
+    if(!cantCreateReminder){
+      newReminder.save()
+    }
     console.log("create reminder:"+newReminder.title)
   }
   
-
 })
 
 Script.complete()
