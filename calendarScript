@@ -4,17 +4,17 @@ var dur_month = 5
 
 const startDate = new Date()
 startDate.setMonth(startDate.getMonth() - dur_month)
-console.log(`日历的开始时间 ${startDate.toLocaleDateString()}`)
+//console.log(`日历的开始时间 ${startDate.toLocaleDateString()}`)
 
 const endDate = new Date()
 endDate.setMonth(endDate.getMonth() + dur_month)
-console.log(`日历的结束时间 ${endDate.toLocaleDateString()}`)
+//console.log(`日历的结束时间 ${endDate.toLocaleDateString()}`)
 
 
 event_cals = await Calendar.forEvents()
 reminder_cals = await Calendar.forReminders()
 titles = reminder_cals.map(e=>e.title).filter(v=>event_cals.map(e=>e.title).includes(v))
-console.log(`日历列表:${titles}`)
+//console.log(`日历列表:${titles}`)
 event_cals = event_cals.filter(v=>titles.includes(v.title))
 reminder_cals = reminder_cals.filter(v=>titles.includes(v.title))
 
@@ -56,32 +56,84 @@ events.forEach(e=>{
   //console.log(newTitle)
   e.save()
 
- //
+	//todo 排查计数问题
+  
+  if(personName.includes("我的")){
+    console.log(personName)
+    console.log(personName.charAt(0).charCodeAt())
+    console.log(personName.replace(/[\ufe0f]/g, '').charAt(0).charCodeAt())
+    var unicodeString = "65039";
+    var hexValue = "0x" + parseInt(unicodeString, 10).toString(16);
+console.log(hexValue); // 输出: 0xfeff
+  }
 
+ //  //1. 打印日历的时间
+  daySeconds = 24 * 60 * 60 * 1000
+  calendarStartDay = Math.floor(e.startDate.getTime() / daySeconds)
+  calendarEndDay = Math.floor(e.endDate / daySeconds)
+  curDay = Math.floor(new Date().getTime() / daySeconds)
+
+
+	//存在提醒
   if(targetReminder){
-    
+		var isExpired = false;
+    //对比时间
+	 	if(curDay > calendarStartDay){
+			isExpired = true;
+    }
+
     //update
+ 		//提醒已完成
     if(targetReminder.isCompleted){
-       if(e.title.startsWith("⭕️")){
+      if(e.title.startsWith("✅")){
+        //nothing todo
+      }else if (e.title.startsWith("⭕️")){
         e.title = "✅" + e.title.substr(1)
-        e.save()
-        }
-    }else{
-        if(e.title.startsWith("✅")){
-        	  e.title = "⭕️" + e.title.substr(1)
-        	  e.save()
-        }
-     }
+      }else if (e.title.startsWith("❌")){
+        //e.title = "✅" + e.title.substr(1)
+      }else{
+        conosle.log("unkown calendar title!")
+      }
+    }else{//提醒未完成
+      //状态检查
+      if(e.title.startsWith("✅") 
+        || e.title.startsWith("❌")
+        || e.title.startsWith("⭕️")){
         
+      }
+      
+      if (isExpired){//提醒未执行，但已过期
+				//日历已完成
+				if(e.title.startsWith("✅")) {
+          e.title = "✅" + e.title.substr(1)
+        }
+        //日历未完成，代办改为过期图标
+        if(e.title.startsWith("⭕️")) {
+          e.title = "❌" + e.title.substr(1)
+        }
+        targetReminder.isCompleted = true
+      }else{
+        //提醒未执行，且未过期
+        e.title = "⭕️" + e.title.substr(1)
+      }
+      
+    }
+    e.title = e.title.replace(/[\ufe0f]/g, '');
+    //更新日历状态
+    e.save()
+
+		//更新提醒信息
     targetReminder.title = e.title
     targetReminder.notes = targetNote
     targetReminder.dueDate = e.startDate
     targetReminder.calendar = reminder_map[e.calendar.title]
     targetReminder.dueDateIncludesTime = !e.isAllDay
     targetReminder.save()
-    console.log("update reminder:"+targetReminder.title)
+    //console.log("update reminder:"+targetReminder.title)
   }
-  else{
+  else{ //不存在提醒
+    cantCreateReminder = true
+
     //create reminder
     newReminder = new Reminder()
     
@@ -93,48 +145,18 @@ events.forEach(e=>{
     if(e.title.startsWith("✅")){
       newReminder.isCompleted = true
     }else if(e.title.startsWith("❌")){
-      //noting todo 
-    }else if(!e.title.startsWith("⭕️")){
+      //不创建
+      cantCreateReminder = false
+    }else{
+      //更新日历状态
       e.title = "⭕️"+e.title
+      e.title = e.title.replace(/[\ufe0f]/g, '');
       e.save()
     }
     newReminder.title = e.title 
   
-     
-  //todo 对比时间
-  curReminder = targetReminder == null ? newReminder : targetReminder
-  //1. 打印日历的时间
-  daySeconds = 24 * 60 * 60 * 1000
-  calendarStartDay = Math.floor(e.startDate.getTime() / daySeconds)
-  calendarEndDay = Math.floor(e.endDate / daySeconds)
-  curDay = Math.floor(new Date().getTime() / daySeconds)
-  
-  
-  console.log("startDate" + e.startDate)
-	//console.log("startDateDay:" + calendarStartDay)
-  //console.log("endDateDay:" + calendarEndDay)
-  //console.log("tismeZone" + e.timeZone)    
-  //console.log("curDate:" + curDay)
-  //2. 获取代办的时间
-  //console.log("curReminder.dueDate" + curReminder.dueDate)
-  //console.log("curReminder.isCompleted" + curReminder.isCompleted)
-
-
-  cantCreateReminder = false
-  if(targetReminder){
-    if(curDay > calendarStartDay){
-      if(targetReminder.isCompleted){
-        console.log("勾勾✅")
-      }else if(e.title.startsWith){
-        console.log("叉叉❌")
-        e.title = "❌" + e.title.substring(1)
-        //e.save()
-        cantCreateReminder = true
-      }
-    }
-  }
-    
-    if(!cantCreateReminder){
+    //创建提醒
+    if(cantCreateReminder){
       newReminder.save()
     }
     console.log("create reminder:"+newReminder.title)
@@ -142,4 +164,9 @@ events.forEach(e=>{
   
 })
 
+
+
 Script.complete()
+
+//release
+//20241104-过期日历不同步代办+解决隐藏unicode字符问题
