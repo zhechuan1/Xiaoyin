@@ -1,0 +1,178 @@
+var dur_month = 5
+
+//todo 超时日程打叉
+
+const startDate = new Date()
+startDate.setMonth(startDate.getMonth() - dur_month)
+//console.log(`日历的开始时间 ${startDate.toLocaleDateString()}`)
+
+const endDate = new Date()
+endDate.setMonth(endDate.getMonth() + dur_month)
+//console.log(`日历的结束时间 ${endDate.toLocaleDateString()}`)
+
+
+event_cals = await Calendar.forEvents()
+reminder_cals = await Calendar.forReminders()
+titles = reminder_cals.map(e=>e.title).filter(v=>event_cals.map(e=>e.title).includes(v))
+//console.log(`日历列表:${titles}`)
+event_cals = event_cals.filter(v=>titles.includes(v.title))
+reminder_cals = reminder_cals.filter(v=>titles.includes(v.title))
+
+reminder_map = {}
+reminder_cals.forEach(r=>reminder_map[r.title] = r)
+
+const events = await CalendarEvent.between(startDate, endDate, event_cals)
+// console.log(events)
+
+const reminders = await Reminder.allDueBetween(startDate, endDate,reminder_cals)
+
+//找出没有创建对应reminder的event，创建reminder
+event_id_set = new Set(events.map(e=>e.identifier))
+//console.log([...event_id_set])
+reminder_created = reminders.filter(e=>e.notes!=null && e.notes.includes("[Event]"))
+reminder_created.forEach(r=>{  
+  reg = /(\[Event\])\s([A-Z0-9\-\:/=]*)/;
+  s = r.notes.match(reg);
+  if(!event_id_set.has(s[2])){
+//     console.log(s[2])
+    r.remove();
+    console.log("删除reminder:"+r.title)
+  }
+});
+personMap=new Map();
+
+events.forEach(e=>{  
+  targetNote = `[Event] ${e.identifier}`
+  let [targetReminder] = reminder_created.filter(e => e.notes != null && e.notes.includes(targetNote))
+ 
+  //计算已经上的课程数
+  len = e.title.length 
+  if(e.title.startsWith("✅".charAt(0))
+    || e.title.startsWith("⭕️".charAt(0))
+    || e.title.startsWith("❌".charAt(0))){
+  	personName = e.title.split("|")[0].substring(1)
+  }else{
+    personName = e.title.split("|")[0]
+  }
+  //console.log("person:" + personName)
+  personMap.set(personName, personMap.get(personName)  == null ? 1 : personMap.get(personName) + 1)
+  //console.log("personCount:" + personName + personMap.get(personName))
+  newTitle = e.title.split("|")[0] + "|" + personMap.get(personName)
+  e.title = newTitle
+  //console.log(newTitle)
+  e.save()
+
+	//todo 排查计数问题
+  
+
+ //  //1. 打印日历的时间
+  daySeconds = 24 * 60 * 60 * 1000
+  calendarStartDay = Math.floor(e.startDate.getTime() / daySeconds)
+  calendarEndDay = Math.floor(e.endDate / daySeconds)
+  curDay = Math.floor(new Date().getTime() / daySeconds)
+
+		var isExpired = false;
+    //对比时间
+	 	if(curDay > calendarStartDay){
+			isExpired = true;
+    }
+
+	//存在提醒
+  if(targetReminder){
+		//console.log(targetReminder.title)
+
+    //update
+ 		//提醒已完成
+    if(targetReminder.isCompleted){
+      if(e.title.startsWith("✅".charAt(0))){
+        //nothing todo
+      }else if (e.title.startsWith("⭕️".charAt(0))){
+        e.title = "✅" + e.title.substr(1)
+      }else if (e.title.startsWith("❌".charAt(0))){
+        //e.title = "✅" + e.title.substr(1)
+      }else{
+        console.log("unkown calendar title!"+e.title)
+      }
+    }else{//提醒未完成
+      //状态检查
+      if(e.title.startsWith("✅".charAt(0)) 
+        || e.title.startsWith("❌".charAt(0))
+        || e.title.startsWith("⭕️".charAt(0))){
+        
+      }
+      
+      if (isExpired){//提醒未执行，但已过期
+				//日历已完成
+				if(e.title.startsWith("✅".charAt(0))) {
+          e.title = "✅" + e.title.substr(1)
+        }else{
+        		//日历未完成，代办改为过期图标
+        		if(e.title.startsWith("⭕️".charAt(0))) {
+          		e.title = "❌" + e.title.substr(1)
+        		}else{
+          		//创建未执行，没有标识符号的,
+						e.title = "❌" + e.title
+          }
+        }
+        targetReminder.isCompleted = true
+      }else{
+        //提醒未执行，且未过期
+        e.title = "⭕️" + e.title.substr(1)
+      }
+      
+    }
+    e.title = e.title.replace(/[\ufe0f]/g, '');
+    //更新日历状态
+    e.save()
+
+		//更新提醒信息
+    targetReminder.title = e.title
+    targetReminder.notes = targetNote
+    targetReminder.dueDate = e.startDate
+    targetReminder.calendar = reminder_map[e.calendar.title]
+    targetReminder.dueDateIncludesTime = !e.isAllDay
+    targetReminder.save()
+    //console.log("update reminder:"+targetReminder.title)
+  }
+  else{ //不存在提醒
+    cantCreateReminder = true
+
+    //create reminder
+    newReminder = new Reminder()
+    
+    console.log(e.title)
+    
+    newReminder.notes = targetNote
+    newReminder.dueDate = e.startDate
+    newReminder.calendar = reminder_map[e.calendar.title]
+    newReminder.dueDateIncludesTime = !e.isAllDay
+    
+    if(e.title.startsWith("✅".charAt(0))){
+      newReminder.isCompleted = true
+    }else if(e.title.startsWith("❌".charAt(0))){
+      //不创建
+      cantCreateReminder = false
+    }else{
+      //更新日历状态
+      e.title = "⭕️"+e.title
+      e.title = e.title.replace(/[\ufe0f]/g, '');
+      e.save()
+    }
+    newReminder.title = e.title 
+  
+    //创建提醒
+    if(cantCreateReminder){
+      newReminder.save()
+    }
+    console.log("create reminder:"+newReminder.title)
+  }
+
+  
+})
+  console.log("finished!")
+
+
+Script.complete()
+
+//release
+//20241104-过期日历不同步代办+解决隐藏unicode字符问题
